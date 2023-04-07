@@ -72,90 +72,10 @@ func (p *Parser) parseObject() interface{} {
 	case token.KEYWORD:
 		switch tok.Value {
 		case "stream":
-			stream := ""
-			for {
-				t, err := p.tokeniser.NextToken()
-
-				if err != nil {
-					panic(err)
-				}
-
-				// Need to check for newline after endstream? In case endstream is in the stream text?
-				if t.Type == token.KEYWORD && t.Value == "endstream" {
-					break
-				}
-
-				if t.Value != nil {
-					stream += fmt.Sprintf("%v", t.Value)
-				}
-			}
-
-			return stream
+			return p.parseStream()
 
 		case "xref":
-			id, err := p.tokeniser.NextToken()
-
-			if err != nil {
-				panic(err)
-			}
-
-			if id.Type != token.NUMBER_INTEGER {
-				panic("Expected xref id")
-			}
-
-			totalObjects, err := p.tokeniser.NextToken()
-
-			if err != nil {
-				panic(err)
-			}
-
-			if totalObjects.Type != token.NUMBER_INTEGER {
-				panic("Expected xref total objects")
-			}
-
-			tot := totalObjects.Value.(int64)
-
-			xrefs := make([]interface{}, tot)
-
-			for i := int64(0); i < tot; i++ {
-				offset, err := p.tokeniser.NextToken()
-
-				if err != nil {
-					panic(err)
-				}
-
-				if offset.Type != token.NUMBER_INTEGER {
-					panic("Expected xref offset")
-				}
-
-				gen, err := p.tokeniser.NextToken()
-
-				if err != nil {
-					panic(err)
-				}
-
-				if gen.Type != token.NUMBER_INTEGER {
-					panic("Expected xref gen")
-				}
-
-				used, err := p.tokeniser.NextToken()
-
-				if err != nil {
-					panic(err)
-				}
-
-				if used.Type != token.KEYWORD || (used.Value != "n" && used.Value != "f") {
-					panic("Expected xref used")
-				}
-
-				xrefs[i] = map[string]interface{}{
-					"offset": offset.Value,
-					"gen":    gen.Value,
-					"used":   used.Value,
-				}
-			}
-
-			return xrefs
+			return p.parseXrefTable()
 
 		case "trailer":
 			p.tokeniser.NextToken()
@@ -245,6 +165,94 @@ func (p *Parser) parseObject() interface{} {
 	}
 
 	return tok.Value
+}
+
+func (p *Parser) parseXrefTable() []interface{} {
+	id, err := p.tokeniser.NextToken()
+
+	if err != nil {
+		panic(err)
+	}
+
+	if id.Type != token.NUMBER_INTEGER {
+		panic("Expected xref id")
+	}
+
+	totalObjects, err := p.tokeniser.NextToken()
+
+	if err != nil {
+		panic(err)
+	}
+
+	if totalObjects.Type != token.NUMBER_INTEGER {
+		panic("Expected xref total objects")
+	}
+
+	tot := totalObjects.Value.(int64)
+
+	xrefs := make([]interface{}, tot)
+
+	for i := int64(0); i < tot; i++ {
+		offset, err := p.tokeniser.NextToken()
+
+		if err != nil {
+			panic(err)
+		}
+
+		if offset.Type != token.NUMBER_INTEGER {
+			panic("Expected xref offset")
+		}
+
+		gen, err := p.tokeniser.NextToken()
+
+		if err != nil {
+			panic(err)
+		}
+
+		if gen.Type != token.NUMBER_INTEGER {
+			panic("Expected xref gen")
+		}
+
+		used, err := p.tokeniser.NextToken()
+
+		if err != nil {
+			panic(err)
+		}
+
+		if used.Type != token.KEYWORD || (used.Value != "n" && used.Value != "f") {
+			panic("Expected xref used")
+		}
+
+		xrefs[i] = map[string]interface{}{
+			"offset": offset.Value,
+			"gen":    gen.Value,
+			"used":   used.Value,
+		}
+	}
+
+	return xrefs
+}
+
+func (p *Parser) parseStream() string {
+	stream := ""
+
+	for {
+		t, err := p.tokeniser.NextToken()
+
+		if err != nil {
+			panic(err)
+		}
+
+		if t.Type == token.KEYWORD && t.Value == "endstream" {
+			break
+		}
+
+		if t.Value != nil {
+			stream += fmt.Sprintf("%v", t.Value)
+		}
+	}
+
+	return stream
 }
 
 func (p *Parser) parseFunction() interface{} {
