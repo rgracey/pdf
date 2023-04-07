@@ -1,11 +1,20 @@
 package tokeniser
 
-func isDigit(ch rune) bool {
-	return ch >= '0' && ch <= '9'
+import (
+	"regexp"
+)
+
+var (
+	NUMBER_INTEGER_REGEX = regexp.MustCompile(`^[+-]?\d+$`)
+	NUMBER_FLOAT_REGEX   = regexp.MustCompile(`^[+-]?\d+\.\d+$`)
+)
+
+func isInteger(number string) bool {
+	return NUMBER_INTEGER_REGEX.MatchString(number)
 }
 
-func isLetter(ch rune) bool {
-	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z')
+func isFloat(number string) bool {
+	return NUMBER_FLOAT_REGEX.MatchString(number)
 }
 
 // isDelimiter returns true if the given character is a delimiter as per the PDF

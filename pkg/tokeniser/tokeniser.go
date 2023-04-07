@@ -2,8 +2,8 @@ package tokeniser
 
 import (
 	"bufio"
-	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/rgracey/pdf/pkg/token"
 )
@@ -107,17 +107,38 @@ func (t *StreamTokeniser) getToken() (token.Token, error) {
 	case ch == '/':
 		return token.Token{Type: token.NAME, Value: t.readRegularCharacters()}, nil
 
-	// TODO - more rigorous number parsing
-	case isDigit(ch):
+	default:
 		t.unread()
-		return token.Token{Type: token.NUMBER, Value: t.readNumber()}, nil
+		tmp := t.readRegularCharacters()
 
-	case isLetter(ch):
-		t.unread()
-		return token.Token{Type: token.KEYWORD, Value: t.readRegularCharacters()}, nil
+		switch {
+		case tmp == "true":
+			return token.Token{Type: token.BOOLEAN, Value: true}, nil
+
+		case tmp == "false":
+			return token.Token{Type: token.BOOLEAN, Value: false}, nil
+
+		case isInteger(tmp):
+			num, err := strconv.ParseInt(tmp, 10, 64)
+
+			if err != nil {
+				return token.Token{}, err
+			}
+
+			return token.Token{Type: token.NUMBER_INTEGER, Value: num}, nil
+
+		case isFloat(tmp):
+			num, err := strconv.ParseFloat(tmp, 64)
+
+			if err != nil {
+				return token.Token{}, err
+			}
+
+			return token.Token{Type: token.NUMBER_FLOAT, Value: num}, nil
+		}
+
+		return token.Token{Type: token.KEYWORD, Value: tmp}, nil
 	}
-
-	return token.Token{}, fmt.Errorf("unexpected character: %c", ch)
 }
 
 func (l *StreamTokeniser) readComment() string {
@@ -177,23 +198,6 @@ func (l *StreamTokeniser) readRegularCharacters() string {
 	}
 
 	return characters
-}
-
-func (l *StreamTokeniser) readNumber() string {
-	var number string
-
-	for {
-		ch := l.read()
-
-		if !isDigit(ch) {
-			l.unread()
-			break
-		}
-
-		number += string(ch)
-	}
-
-	return number
 }
 
 func (t *StreamTokeniser) unread() {

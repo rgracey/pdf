@@ -9,7 +9,10 @@ const (
 
 	COMMENT // %
 
-	NUMBER // 123 -123 123.456 -123.456
+	NUMBER_INTEGER // 123 -123 +123
+	NUMBER_FLOAT   // 123.456 -123.456 +123.456
+
+	BOOLEAN // true false
 
 	DICT_START // <<
 	DICT_END   // >>
@@ -49,8 +52,10 @@ func (t Token) String() string {
 		tokenType = "EOF"
 	case COMMENT:
 		tokenType = "COMMENT"
-	case NUMBER:
-		tokenType = "NUMBER"
+	case NUMBER_INTEGER:
+		tokenType = "INTEGER"
+	case NUMBER_FLOAT:
+		tokenType = "FLOAT"
 	case DICT_START:
 		tokenType = "DICT_START"
 	case DICT_END:

@@ -2,7 +2,6 @@ package parser
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/rgracey/pdf/pkg/token"
@@ -85,8 +84,9 @@ func (p *Parser) parseObject() interface{} {
 				if t.Type == token.KEYWORD && t.Value == "endstream" {
 					break
 				}
+
 				if t.Value != nil {
-					stream += t.Value.(string)
+					stream += fmt.Sprintf("%v", t.Value)
 				}
 			}
 
@@ -99,7 +99,7 @@ func (p *Parser) parseObject() interface{} {
 				panic(err)
 			}
 
-			if id.Type != token.NUMBER {
+			if id.Type != token.NUMBER_INTEGER {
 				panic("Expected xref id")
 			}
 
@@ -109,26 +109,22 @@ func (p *Parser) parseObject() interface{} {
 				panic(err)
 			}
 
-			if totalObjects.Type != token.NUMBER {
+			if totalObjects.Type != token.NUMBER_INTEGER {
 				panic("Expected xref total objects")
 			}
 
-			tot, err := strconv.Atoi(totalObjects.Value.(string))
-
-			if err != nil {
-				panic(err)
-			}
+			tot := totalObjects.Value.(int64)
 
 			xrefs := make([]interface{}, tot)
 
-			for i := 0; i < tot; i++ {
+			for i := int64(0); i < tot; i++ {
 				offset, err := p.tokeniser.NextToken()
 
 				if err != nil {
 					panic(err)
 				}
 
-				if offset.Type != token.NUMBER {
+				if offset.Type != token.NUMBER_INTEGER {
 					panic("Expected xref offset")
 				}
 
@@ -138,7 +134,7 @@ func (p *Parser) parseObject() interface{} {
 					panic(err)
 				}
 
-				if gen.Type != token.NUMBER {
+				if gen.Type != token.NUMBER_INTEGER {
 					panic("Expected xref gen")
 				}
 
@@ -178,14 +174,17 @@ func (p *Parser) parseObject() interface{} {
 	case token.STRING_LITERAL:
 		return tok.Value
 
-	case token.NUMBER:
+	case token.NUMBER_FLOAT:
+		return tok.Value
+
+	case token.NUMBER_INTEGER:
 		gen, err := p.tokeniser.NextToken()
 
 		if err != nil {
 			panic(err)
 		}
 
-		if gen.Type != token.NUMBER {
+		if gen.Type != token.NUMBER_INTEGER {
 			p.tokeniser.UnreadToken()
 			return tok.Value
 		}
