@@ -13,7 +13,6 @@ const (
 )
 
 type Tokeniser interface {
-	PeekToken() token.Token
 	NextToken() token.Token
 	UnreadToken()
 }
@@ -28,12 +27,6 @@ func NewTokeniser(r io.Reader) Tokeniser {
 	return &StreamTokeniser{
 		r: bufio.NewReader(r),
 	}
-}
-
-func (t *StreamTokeniser) PeekToken() token.Token {
-	tok := t.NextToken()
-	t.UnreadToken()
-	return tok
 }
 
 func (t *StreamTokeniser) NextToken() token.Token {

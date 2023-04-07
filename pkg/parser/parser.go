@@ -29,11 +29,13 @@ func (p *Parser) Parse() {
 	fmt.Println(t.Value)
 
 	for {
-		t := p.tokeniser.PeekToken()
+		t := p.tokeniser.NextToken()
 
 		if t.Type == token.EOF {
 			break
 		}
+
+		p.tokeniser.UnreadToken()
 
 		obj := p.parseObject()
 
