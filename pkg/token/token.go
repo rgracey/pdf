@@ -9,7 +9,7 @@ const (
 
 	COMMENT // %
 
-	NUMBER // 123
+	NUMBER // 123 -123 123.456 -123.456
 
 	DICT_START // <<
 	DICT_END   // >>
@@ -17,17 +17,16 @@ const (
 	ARRAY_START // [
 	ARRAY_END   // ]
 
-	STRING_START // (
-	STRING_END   // )
+	STRING_LITERAL // (the string)
 
 	FUNCTION_START // {
 	FUNCTION_END   // }
 
 	NAME // /Name
 
-	KEYWORD // obj endobj stream endstream R
+	KEYWORD // obj endobj R stream endstream xref trailer startxref
 
-	UNKNOWN // Anything else. Possibly the body of a stream (if encoded)
+	REGULAR_CHAR // Any non whitespace or delimiter character
 )
 
 type Token struct {
@@ -60,16 +59,12 @@ func (t Token) String() string {
 		tokenType = "ARRAY_START"
 	case ARRAY_END:
 		tokenType = "ARRAY_END"
-	case STRING_START:
-		tokenType = "STRING_START"
-	case STRING_END:
-		tokenType = "STRING_END"
+	case STRING_LITERAL:
+		tokenType = "STRING_LITERAL"
 	case NAME:
 		tokenType = "NAME"
 	case KEYWORD:
 		tokenType = "KEYWORD"
-	case UNKNOWN:
-		tokenType = "UNKNOWN"
 	}
 
 	return fmt.Sprintf("TYPE: %s, VALUE: %v", tokenType, t.Value)

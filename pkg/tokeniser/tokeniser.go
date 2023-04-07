@@ -2,25 +2,14 @@ package tokeniser
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 
 	"github.com/rgracey/pdf/pkg/token"
 )
 
 const (
-	eof                = rune(0)
-	carriageReturn     = rune(13)
-	lineFeed           = rune(10)
-	percent            = rune(37)
-	leftCurlyBracket   = rune(123)
-	rightCurlyBracket  = rune(125)
-	leftSquareBracket  = rune(91)
-	rightSquareBracket = rune(93)
-	leftParenthesis    = rune(40)
-	rightParenthesis   = rune(41)
-	lessThan           = rune(60)
-	greaterThan        = rune(62)
-	slash              = rune(47)
+	eof = rune(0)
 )
 
 type Tokeniser interface {
@@ -42,12 +31,9 @@ func NewTokeniser(r io.Reader) Tokeniser {
 }
 
 func (t *StreamTokeniser) PeekToken() token.Token {
-	if len(t.unreadTokens) > 0 {
-		return t.unreadTokens[0]
-	}
-
-	t.unreadTokens = append(t.unreadTokens, t.getToken())
-	return t.unreadTokens[0]
+	tok := t.NextToken()
+	t.UnreadToken()
+	return tok
 }
 
 func (t *StreamTokeniser) NextToken() token.Token {
@@ -58,7 +44,12 @@ func (t *StreamTokeniser) NextToken() token.Token {
 		return tok
 	}
 
-	tok := t.getToken()
+	tok, err := t.getToken()
+
+	if err != nil {
+		return token.Token{}
+	}
+
 	t.readtokens = append(t.readtokens, tok)
 	return tok
 }
@@ -72,134 +63,141 @@ func (t *StreamTokeniser) UnreadToken() {
 	t.readtokens = t.readtokens[:len(t.readtokens)-1]
 }
 
-func (t *StreamTokeniser) getToken() token.Token {
-	for isWhitespace(t.peek()) {
-		t.read()
-	}
-
+func (t *StreamTokeniser) getToken() (token.Token, error) {
 	ch := t.read()
+
+	for isWhitespace(ch) {
+		ch = t.read()
+	}
 
 	switch {
 	case ch == eof:
-		return token.Token{Type: token.EOF}
+		return token.Token{Type: token.EOF}, nil
 
-	case ch == percent:
-		return token.Token{Type: token.COMMENT, Value: t.readComment()}
+	case ch == '<':
+		if t.maybe('<') {
+			return token.Token{Type: token.DICT_START}, nil
+		}
 
-	case ch == leftCurlyBracket:
-		return token.Token{Type: token.FUNCTION_START}
+		// TODO - Should be a hex string
+		return token.Token{
+			Type:  token.REGULAR_CHAR,
+			Value: t.readRegularCharacters(),
+		}, nil
 
-	case ch == rightCurlyBracket:
-		return token.Token{Type: token.FUNCTION_END}
+	case ch == '>':
+		if t.maybe('>') {
+			return token.Token{Type: token.DICT_END}, nil
+		}
 
-	case ch == leftSquareBracket:
-		return token.Token{Type: token.ARRAY_START}
+		// TODO - is this correct?
+		return token.Token{
+			Type:  token.KEYWORD,
+			Value: t.readRegularCharacters(),
+		}, nil
 
-	case ch == rightSquareBracket:
-		return token.Token{Type: token.ARRAY_END}
+	case ch == '[':
+		return token.Token{Type: token.ARRAY_START}, nil
 
-	case ch == leftParenthesis:
-		return token.Token{Type: token.STRING_START}
+	case ch == ']':
+		return token.Token{Type: token.ARRAY_END}, nil
 
-	case ch == rightParenthesis:
-		return token.Token{Type: token.STRING_END}
+	case ch == '(':
+		return token.Token{
+			Type:  token.STRING_LITERAL,
+			Value: t.readStringLiteral(),
+		}, nil
 
-	case ch == slash:
-		return token.Token{Type: token.NAME, Value: t.readName()}
+	case ch == '%':
+		return token.Token{Type: token.COMMENT, Value: t.readComment()}, nil
 
+	case ch == '/':
+		return token.Token{Type: token.NAME, Value: t.readRegularCharacters()}, nil
+
+	// TODO - more rigorous number parsing
 	case isDigit(ch):
 		t.unread()
-		return token.Token{Type: token.NUMBER, Value: t.readNumber()}
+		return token.Token{Type: token.NUMBER, Value: t.readNumber()}, nil
 
 	case isLetter(ch):
 		t.unread()
-		return token.Token{Type: token.KEYWORD, Value: t.readLetters()}
-
-	case ch == lessThan:
-		if t.peek() == lessThan {
-			t.read()
-			return token.Token{Type: token.DICT_START}
-		}
-
-	case ch == greaterThan:
-		if t.peek() == greaterThan {
-			t.read()
-			return token.Token{Type: token.DICT_END}
-		}
+		return token.Token{Type: token.KEYWORD, Value: t.readRegularCharacters()}, nil
 	}
 
-	return token.Token{Type: token.UNKNOWN, Value: string(ch)}
-}
-
-func (l *StreamTokeniser) readName() string {
-	var name string
-
-	for {
-		ch := l.peek()
-
-		if !isLetter(ch) && !isDigit(ch) {
-			break
-		}
-
-		name += string(ch)
-		l.read()
-	}
-
-	return name
+	return token.Token{}, fmt.Errorf("unexpected character: %c", ch)
 }
 
 func (l *StreamTokeniser) readComment() string {
 	var comment string
 
 	for {
-		ch := l.peek()
+		ch := l.read()
 
-		if ch == carriageReturn || ch == lineFeed {
+		if ch == '\r' || ch == '\n' {
 			l.read()
 
-			if ch == carriageReturn && l.peek() == lineFeed {
-				l.read()
+			if ch == '\r' && l.read() != '\n' {
+				l.unread()
 			}
 
 			break
 		}
 
 		comment += string(ch)
-		l.read()
 	}
 
 	return comment
 }
 
-func (l *StreamTokeniser) readLetters() string {
-	var word string
+func (l *StreamTokeniser) readStringLiteral() string {
+	var literal string
 
 	for {
-		ch := l.peek()
+		ch := l.read()
 
-		if !isLetter(ch) {
+		if ch == ')' {
 			break
 		}
 
-		word += string(ch)
-		l.read()
+		if ch == '\\' {
+			ch = l.read()
+		}
+
+		literal += string(ch)
 	}
 
-	return word
+	return literal
+}
+
+func (l *StreamTokeniser) readRegularCharacters() string {
+	var characters string
+
+	for {
+		ch := l.read()
+
+		if isDelimiter(ch) || isWhitespace(ch) {
+			l.unread()
+			break
+		}
+
+		characters += string(ch)
+	}
+
+	return characters
 }
 
 func (l *StreamTokeniser) readNumber() string {
 	var number string
 
 	for {
-		ch := l.peek()
+		ch := l.read()
 
 		if !isDigit(ch) {
+			l.unread()
 			break
 		}
 
 		number += string(ch)
-		l.read()
 	}
 
 	return number
@@ -219,9 +217,13 @@ func (t *StreamTokeniser) read() rune {
 	return ch
 }
 
-func (t *StreamTokeniser) peek() rune {
-	ch := t.read()
-	t.unread()
+func (t *StreamTokeniser) maybe(ch rune) bool {
+	next := t.read()
 
-	return ch
+	if next != ch {
+		t.unread()
+		return false
+	}
+
+	return true
 }

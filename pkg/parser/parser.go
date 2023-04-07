@@ -129,35 +129,11 @@ func (p *Parser) parseObject() interface{} {
 	case token.ARRAY_START:
 		return p.parseArray()
 
-	case token.NAME:
-		return tok.Value
-
 	case token.FUNCTION_START:
 		return p.parseFunction()
 
-	case token.STRING_START:
-		// TODO - respect whitespace in strings
-		str := ""
-		for {
-			t := p.tokeniser.NextToken()
-			if t.Type == token.STRING_END {
-				// Consume any more string end characters
-				for {
-					t = p.tokeniser.NextToken()
-					if t.Type != token.STRING_END {
-						p.tokeniser.UnreadToken()
-						break
-					}
-				}
-				break
-			}
-
-			if t.Value != nil {
-				str += t.Value.(string)
-			}
-		}
-
-		return str
+	case token.STRING_LITERAL:
+		return tok.Value
 
 	case token.NUMBER:
 		gen := p.tokeniser.NextToken()
