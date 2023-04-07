@@ -268,5 +268,5 @@ func (p *Parser) parseDictionary() interface{} {
 }
 
 func report(expected token.Token, actual token.Token) {
-	panic(fmt.Sprintf("Expected:\n	%s\n	Actual:%s", expected, actual))
+	panic(fmt.Sprintf("\nExpected:\n	%s\nActual:\n	%s", expected, actual))
 }
