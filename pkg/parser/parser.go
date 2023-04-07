@@ -20,7 +20,11 @@ func NewParser(tokeniser tokeniser.Tokeniser) *Parser {
 }
 
 func (p *Parser) Parse() {
-	t := p.tokeniser.NextToken()
+	t, err := p.tokeniser.NextToken()
+
+	if err != nil {
+		panic(err)
+	}
 
 	if t.Type != token.COMMENT || !strings.HasPrefix(t.Value.(string), "PDF-") {
 		panic("Expected PDF version comment")
@@ -29,7 +33,11 @@ func (p *Parser) Parse() {
 	fmt.Println(t.Value)
 
 	for {
-		t := p.tokeniser.NextToken()
+		t, err := p.tokeniser.NextToken()
+
+		if err != nil {
+			panic(err)
+		}
 
 		if t.Type == token.EOF {
 			break
@@ -55,7 +63,11 @@ type Object struct {
 }
 
 func (p *Parser) parseObject() interface{} {
-	tok := p.tokeniser.NextToken()
+	tok, err := p.tokeniser.NextToken()
+
+	if err != nil {
+		panic(err)
+	}
 
 	switch tok.Type {
 	case token.KEYWORD:
@@ -63,7 +75,12 @@ func (p *Parser) parseObject() interface{} {
 		case "stream":
 			stream := ""
 			for {
-				t := p.tokeniser.NextToken()
+				t, err := p.tokeniser.NextToken()
+
+				if err != nil {
+					panic(err)
+				}
+
 				// Need to check for newline after endstream? In case endstream is in the stream text?
 				if t.Type == token.KEYWORD && t.Value == "endstream" {
 					break
@@ -76,12 +93,22 @@ func (p *Parser) parseObject() interface{} {
 			return stream
 
 		case "xref":
-			id := p.tokeniser.NextToken()
+			id, err := p.tokeniser.NextToken()
+
+			if err != nil {
+				panic(err)
+			}
+
 			if id.Type != token.NUMBER {
 				panic("Expected xref id")
 			}
 
-			totalObjects := p.tokeniser.NextToken()
+			totalObjects, err := p.tokeniser.NextToken()
+
+			if err != nil {
+				panic(err)
+			}
+
 			if totalObjects.Type != token.NUMBER {
 				panic("Expected xref total objects")
 			}
@@ -95,17 +122,31 @@ func (p *Parser) parseObject() interface{} {
 			xrefs := make([]interface{}, tot)
 
 			for i := 0; i < tot; i++ {
-				offset := p.tokeniser.NextToken()
+				offset, err := p.tokeniser.NextToken()
+
+				if err != nil {
+					panic(err)
+				}
+
 				if offset.Type != token.NUMBER {
 					panic("Expected xref offset")
 				}
 
-				gen := p.tokeniser.NextToken()
+				gen, err := p.tokeniser.NextToken()
+
+				if err != nil {
+					panic(err)
+				}
+
 				if gen.Type != token.NUMBER {
 					panic("Expected xref gen")
 				}
 
-				used := p.tokeniser.NextToken()
+				used, err := p.tokeniser.NextToken()
+
+				if err != nil {
+					panic(err)
+				}
 
 				if used.Type != token.KEYWORD || (used.Value != "n" && used.Value != "f") {
 					panic("Expected xref used")
@@ -138,14 +179,22 @@ func (p *Parser) parseObject() interface{} {
 		return tok.Value
 
 	case token.NUMBER:
-		gen := p.tokeniser.NextToken()
+		gen, err := p.tokeniser.NextToken()
+
+		if err != nil {
+			panic(err)
+		}
 
 		if gen.Type != token.NUMBER {
 			p.tokeniser.UnreadToken()
 			return tok.Value
 		}
 
-		keyword := p.tokeniser.NextToken()
+		keyword, err := p.tokeniser.NextToken()
+
+		if err != nil {
+			panic(err)
+		}
 
 		if keyword.Type != token.KEYWORD {
 			p.tokeniser.UnreadToken()
@@ -157,14 +206,22 @@ func (p *Parser) parseObject() interface{} {
 		case "obj":
 			data := p.parseObject()
 
-			t := p.tokeniser.NextToken()
+			t, err := p.tokeniser.NextToken()
+
+			if err != nil {
+				panic(err)
+			}
 
 			var stream interface{}
 
 			if t.Type == token.KEYWORD && t.Value == "stream" {
 				p.tokeniser.UnreadToken()
 				stream = p.parseObject()
-				t = p.tokeniser.NextToken()
+				t, err = p.tokeniser.NextToken()
+
+				if err != nil {
+					panic(err)
+				}
 			}
 
 			if t.Type != token.KEYWORD || t.Value != "endobj" {
@@ -195,7 +252,12 @@ func (p *Parser) parseFunction() interface{} {
 	function := ""
 
 	for {
-		t := p.tokeniser.NextToken()
+		t, err := p.tokeniser.NextToken()
+
+		if err != nil {
+			panic(err)
+		}
+
 		if t.Type == token.FUNCTION_END {
 			break
 		}
@@ -212,7 +274,12 @@ func (p *Parser) parseArray() []interface{} {
 	arr := []interface{}{}
 
 	for {
-		t := p.tokeniser.NextToken()
+		t, err := p.tokeniser.NextToken()
+
+		if err != nil {
+			panic(err)
+		}
+
 		if t.Type == token.ARRAY_END {
 			break
 		}
@@ -228,7 +295,12 @@ func (p *Parser) parseDictionary() interface{} {
 	dict := map[string]interface{}{}
 
 	for {
-		t := p.tokeniser.NextToken()
+		t, err := p.tokeniser.NextToken()
+
+		if err != nil {
+			panic(err)
+		}
+
 		if t.Type == token.DICT_END {
 			break
 		}

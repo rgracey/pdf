@@ -13,7 +13,7 @@ const (
 )
 
 type Tokeniser interface {
-	NextToken() token.Token
+	NextToken() (token.Token, error)
 	UnreadToken()
 }
 
@@ -29,22 +29,22 @@ func NewTokeniser(r io.Reader) Tokeniser {
 	}
 }
 
-func (t *StreamTokeniser) NextToken() token.Token {
+func (t *StreamTokeniser) NextToken() (token.Token, error) {
 	if len(t.unreadTokens) > 0 {
 		tok := t.unreadTokens[0]
 		t.unreadTokens = t.unreadTokens[1:]
 		t.readtokens = append(t.readtokens, tok)
-		return tok
+		return tok, nil
 	}
 
 	tok, err := t.getToken()
 
 	if err != nil {
-		return token.Token{}
+		return token.Token{}, err
 	}
 
 	t.readtokens = append(t.readtokens, tok)
-	return tok
+	return tok, nil
 }
 
 func (t *StreamTokeniser) UnreadToken() {
