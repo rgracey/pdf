@@ -15,5 +15,17 @@ func main() {
 	}
 	defer file.Close()
 
-	_ = pdf.ParseStream(file)
+	pdfDoc, _ := pdf.ParseStream(file)
+
+	fmt.Println("version:", pdfDoc.Version())
+
+	for _, obj := range pdfDoc.Objects() {
+		fmt.Printf(
+			"ID: %d, Generation: %d, Header: %v, Data: %v\n",
+			obj.Ref.Id,
+			obj.Ref.Generation,
+			obj.Header,
+			obj.Data,
+		)
+	}
 }

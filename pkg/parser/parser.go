@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/rgracey/pdf/pkg/document"
 	"github.com/rgracey/pdf/pkg/token"
 	"github.com/rgracey/pdf/pkg/tokeniser"
 )
 
 type Parser struct {
 	tokeniser tokeniser.Tokeniser
+	pdfDoc    document.Pdf
 }
 
 func NewParser(tokeniser tokeniser.Tokeniser) *Parser {
@@ -18,7 +20,9 @@ func NewParser(tokeniser tokeniser.Tokeniser) *Parser {
 	}
 }
 
-func (p *Parser) Parse() {
+func (p *Parser) Parse() document.Pdf {
+	p.pdfDoc = document.Pdf{}
+
 	t, err := p.tokeniser.NextToken()
 
 	if err != nil {
@@ -29,7 +33,7 @@ func (p *Parser) Parse() {
 		panic("Expected PDF version comment")
 	}
 
-	fmt.Println(t.Value)
+	p.pdfDoc.SetVersion(t.Value.(string))
 
 	for {
 		t, err := p.tokeniser.NextToken()
@@ -46,22 +50,25 @@ func (p *Parser) Parse() {
 
 		obj := p.parseObject()
 
-		fmt.Println(obj)
+		switch obj.Type {
+		case document.INDIRECT_OBJECT:
+			p.pdfDoc.AddObject(obj)
+
+		case document.XREFS:
+			for _, xref := range obj.Data.([]document.Xref) {
+				p.pdfDoc.AddXref(xref)
+			}
+
+		case document.DICT:
+			p.pdfDoc.SetTrailer(obj.Data.(document.Dict))
+		}
+
 	}
+
+	return p.pdfDoc
 }
 
-type ObjectReference struct {
-	Id  interface{}
-	Gen interface{}
-}
-
-type Object struct {
-	objRef ObjectReference
-	data   interface{}
-	stream interface{}
-}
-
-func (p *Parser) parseObject() interface{} {
+func (p *Parser) parseObject() document.Object {
 	tok, err := p.tokeniser.NextToken()
 
 	if err != nil {
@@ -75,7 +82,10 @@ func (p *Parser) parseObject() interface{} {
 			return p.parseStream()
 
 		case "xref":
-			return p.parseXrefTable()
+			return document.Object{
+				Type: document.XREFS,
+				Data: p.parseXrefTable(),
+			}
 
 		case "trailer":
 			p.tokeniser.NextToken()
@@ -92,10 +102,16 @@ func (p *Parser) parseObject() interface{} {
 		return p.parseFunction()
 
 	case token.STRING_LITERAL:
-		return tok.Value
+		return document.Object{
+			Type: document.STRING,
+			Data: tok.Value,
+		}
 
 	case token.NUMBER_FLOAT:
-		return tok.Value
+		return document.Object{
+			Type: document.NUMBER_FLOAT,
+			Data: tok.Value,
+		}
 
 	case token.NUMBER_INTEGER:
 		gen, err := p.tokeniser.NextToken()
@@ -106,7 +122,10 @@ func (p *Parser) parseObject() interface{} {
 
 		if gen.Type != token.NUMBER_INTEGER {
 			p.tokeniser.UnreadToken()
-			return tok.Value
+			return document.Object{
+				Type: document.NUMBER_INTEGER,
+				Data: tok.Value,
+			}
 		}
 
 		keyword, err := p.tokeniser.NextToken()
@@ -118,7 +137,10 @@ func (p *Parser) parseObject() interface{} {
 		if keyword.Type != token.KEYWORD {
 			p.tokeniser.UnreadToken()
 			p.tokeniser.UnreadToken()
-			return tok.Value
+			return document.Object{
+				Type: document.NUMBER_INTEGER,
+				Data: tok.Value,
+			}
 		}
 
 		switch keyword.Value {
@@ -147,27 +169,34 @@ func (p *Parser) parseObject() interface{} {
 				panic("Expected endobj")
 			}
 
-			return Object{
-				objRef: ObjectReference{
-					Id:  tok.Value,
-					Gen: gen.Value,
+			return document.Object{
+				Type: document.INDIRECT_OBJECT,
+				Ref: document.ObjectRef{
+					Id:         int(tok.Value.(int64)),
+					Generation: int(gen.Value.(int64)),
 				},
-				data:   data,
-				stream: stream,
+				Header: data,
+				Data:   stream,
 			}
 
 		case "R":
-			return ObjectReference{
-				Id:  tok.Value,
-				Gen: gen.Value,
+			return document.Object{
+				Type: document.OBJECT_REF,
+				Ref: document.ObjectRef{
+					Id:         int(tok.Value.(int64)),
+					Generation: int(gen.Value.(int64)),
+				},
 			}
 		}
 	}
 
-	return tok.Value
+	return document.Object{
+		Type: document.UNKNOWN,
+		Data: tok.Value,
+	}
 }
 
-func (p *Parser) parseXrefTable() []interface{} {
+func (p *Parser) parseXrefTable() []document.Xref {
 	id, err := p.tokeniser.NextToken()
 
 	if err != nil {
@@ -190,7 +219,7 @@ func (p *Parser) parseXrefTable() []interface{} {
 
 	tot := totalObjects.Value.(int64)
 
-	xrefs := make([]interface{}, tot)
+	xrefs := make([]document.Xref, tot)
 
 	for i := int64(0); i < tot; i++ {
 		offset, err := p.tokeniser.NextToken()
@@ -223,17 +252,23 @@ func (p *Parser) parseXrefTable() []interface{} {
 			panic("Expected xref used")
 		}
 
-		xrefs[i] = map[string]interface{}{
-			"offset": offset.Value,
-			"gen":    gen.Value,
-			"used":   used.Value,
+		u := false
+
+		if used.Value == "n" {
+			u = true
+		}
+
+		xrefs[i] = document.Xref{
+			Offset:     offset.Value.(int64),
+			Generation: gen.Value.(int64),
+			Used:       u,
 		}
 	}
 
 	return xrefs
 }
 
-func (p *Parser) parseStream() string {
+func (p *Parser) parseStream() document.Object {
 	stream := ""
 
 	for {
@@ -252,10 +287,13 @@ func (p *Parser) parseStream() string {
 		}
 	}
 
-	return stream
+	return document.Object{
+		Type: document.STREAM,
+		Data: stream,
+	}
 }
 
-func (p *Parser) parseFunction() interface{} {
+func (p *Parser) parseFunction() document.Object {
 	function := ""
 
 	for {
@@ -274,11 +312,14 @@ func (p *Parser) parseFunction() interface{} {
 		}
 	}
 
-	return function
+	return document.Object{
+		Type: document.FUNCTION,
+		Data: function,
+	}
 }
 
-func (p *Parser) parseArray() []interface{} {
-	arr := []interface{}{}
+func (p *Parser) parseArray() document.Object {
+	arr := []document.Object{}
 
 	for {
 		t, err := p.tokeniser.NextToken()
@@ -294,12 +335,15 @@ func (p *Parser) parseArray() []interface{} {
 		arr = append(arr, p.parseObject())
 	}
 
-	return arr
+	return document.Object{
+		Type: document.ARRAY,
+		Data: arr,
+	}
 }
 
 // TODO - correct return type
-func (p *Parser) parseDictionary() interface{} {
-	dict := map[string]interface{}{}
+func (p *Parser) parseDictionary() document.Object {
+	dict := document.Dict{}
 
 	for {
 		t, err := p.tokeniser.NextToken()
@@ -321,7 +365,10 @@ func (p *Parser) parseDictionary() interface{} {
 		dict[key] = p.parseObject()
 	}
 
-	return dict
+	return document.Object{
+		Type: document.DICT,
+		Data: dict,
+	}
 }
 
 func report(expected token.Token, actual token.Token) {
