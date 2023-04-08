@@ -8,10 +8,6 @@ import (
 	"github.com/rgracey/pdf/pkg/token"
 )
 
-const (
-	eof = rune(0)
-)
-
 type Tokeniser interface {
 	NextToken() (token.Token, error)
 	UnreadToken()
@@ -57,16 +53,17 @@ func (t *StreamTokeniser) UnreadToken() {
 }
 
 func (t *StreamTokeniser) getToken() (token.Token, error) {
-	ch := t.read()
+	ch, eof := t.read()
+
+	if eof {
+		return token.Token{Type: token.EOF}, nil
+	}
 
 	for isWhitespace(ch) {
-		ch = t.read()
+		ch, _ = t.read()
 	}
 
 	switch {
-	case ch == eof:
-		return token.Token{Type: token.EOF}, nil
-
 	case ch == '<':
 		if t.maybe('<') {
 			return token.Token{Type: token.DICT_START}, nil
@@ -145,12 +142,13 @@ func (l *StreamTokeniser) readComment() string {
 	var comment string
 
 	for {
-		ch := l.read()
+		ch, _ := l.read()
 
 		if ch == '\r' || ch == '\n' {
 			l.read()
+			c, _ := l.read()
 
-			if ch == '\r' && l.read() != '\n' {
+			if ch == '\r' && c != '\n' {
 				l.unread()
 			}
 
@@ -167,14 +165,14 @@ func (l *StreamTokeniser) readStringLiteral() string {
 	var literal string
 
 	for {
-		ch := l.read()
+		ch, _ := l.read()
 
 		if ch == ')' {
 			break
 		}
 
 		if ch == '\\' {
-			ch = l.read()
+			ch, _ = l.read()
 		}
 
 		literal += string(ch)
@@ -187,7 +185,7 @@ func (l *StreamTokeniser) readRegularCharacters() string {
 	var characters string
 
 	for {
-		ch := l.read()
+		ch, _ := l.read()
 
 		if isDelimiter(ch) || isWhitespace(ch) {
 			l.unread()
@@ -204,18 +202,18 @@ func (t *StreamTokeniser) unread() {
 	t.r.UnreadRune()
 }
 
-func (t *StreamTokeniser) read() rune {
+func (t *StreamTokeniser) read() (rune, bool) {
 	ch, _, err := t.r.ReadRune()
 
 	if err != nil {
-		return eof
+		return 0, true
 	}
 
-	return ch
+	return ch, false
 }
 
 func (t *StreamTokeniser) maybe(ch rune) bool {
-	next := t.read()
+	next, _ := t.read()
 
 	if next != ch {
 		t.unread()
