@@ -15,21 +15,22 @@ type Tokeniser interface {
 
 type StreamTokeniser struct {
 	r            *bufio.Reader
-	readtokens   []token.Token // All read tokens
-	unreadTokens []token.Token // Any read then unread tokens
+	readtokens   *Stack[token.Token] // All read tokens
+	unreadTokens *Stack[token.Token] // Any read then unread tokens
 }
 
 func NewTokeniser(r io.Reader) Tokeniser {
 	return &StreamTokeniser{
-		r: bufio.NewReader(r),
+		r:            bufio.NewReader(r),
+		readtokens:   NewStack[token.Token](3),
+		unreadTokens: NewStack[token.Token](3),
 	}
 }
 
 func (t *StreamTokeniser) NextToken() (token.Token, error) {
-	if len(t.unreadTokens) > 0 {
-		tok := t.unreadTokens[0]
-		t.unreadTokens = t.unreadTokens[1:]
-		t.readtokens = append(t.readtokens, tok)
+	if t.unreadTokens.Length() > 0 {
+		tok := t.unreadTokens.Pop()
+		t.readtokens.Push(tok)
 		return tok, nil
 	}
 
@@ -39,17 +40,16 @@ func (t *StreamTokeniser) NextToken() (token.Token, error) {
 		return token.Token{}, err
 	}
 
-	t.readtokens = append(t.readtokens, tok)
+	t.readtokens.Push(tok)
 	return tok, nil
 }
 
 func (t *StreamTokeniser) UnreadToken() {
-	if len(t.readtokens) == 0 {
+	if t.readtokens.Length() == 0 {
 		panic("No tokens to unread")
 	}
 
-	t.unreadTokens = append([]token.Token{t.readtokens[len(t.readtokens)-1]}, t.unreadTokens...)
-	t.readtokens = t.readtokens[:len(t.readtokens)-1]
+	t.unreadTokens.Push(t.readtokens.Pop())
 }
 
 func (t *StreamTokeniser) getToken() (token.Token, error) {
