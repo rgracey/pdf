@@ -2,273 +2,152 @@ package parser
 
 import (
 	"fmt"
-	"strings"
 
-	"github.com/rgracey/pdf/pkg/document"
+	"github.com/rgracey/pdf/pkg/ast"
 	"github.com/rgracey/pdf/pkg/token"
 	"github.com/rgracey/pdf/pkg/tokeniser"
 )
 
 type Parser struct {
-	tokeniser tokeniser.Tokeniser
-	pdfDoc    document.Pdf
+	tokeniser   tokeniser.Tokeniser
+	ast         ast.PdfNode
+	current     ast.PdfNode
+	parentStack []ast.PdfNode
 }
 
 func NewParser(tokeniser tokeniser.Tokeniser) *Parser {
+	root := ast.NewRootNode()
+
 	return &Parser{
 		tokeniser: tokeniser,
+		ast:       root,
+		current:   root,
 	}
 }
 
-func (p *Parser) Parse() document.Pdf {
-	p.pdfDoc = document.Pdf{}
-
-	t, err := p.tokeniser.NextToken()
-
-	if err != nil {
-		panic(err)
-	}
-
-	if t.Type != token.COMMENT || !strings.HasPrefix(t.Value.(string), "PDF-") {
-		panic("Expected PDF version comment")
-	}
-
-	p.pdfDoc.SetVersion(t.Value.(string))
-
+func (p *Parser) Parse() ast.PdfNode {
 	for {
-		t, err := p.tokeniser.NextToken()
+		tok, err := p.tokeniser.NextToken()
 
 		if err != nil {
 			panic(err)
 		}
 
-		if t.Type == token.EOF {
+		if tok.Type == token.EOF {
 			break
 		}
 
-		p.tokeniser.UnreadToken()
-
-		obj := p.parseObject()
-
-		switch obj.Type {
-		case document.INDIRECT_OBJECT:
-			p.pdfDoc.AddObject(obj)
-
-		case document.XREFS:
-			for _, xref := range obj.Data.([]document.Xref) {
-				p.pdfDoc.AddXref(xref)
-			}
-
-		case document.DICT:
-			p.pdfDoc.SetTrailer(obj.Data.(document.Dict))
-		}
-
-	}
-
-	return p.pdfDoc
-}
-
-func (p *Parser) parseObject() document.Object {
-	tok, err := p.tokeniser.NextToken()
-
-	if err != nil {
-		panic(err)
-	}
-
-	switch tok.Type {
-	case token.KEYWORD:
-		switch tok.Value {
-		case "stream":
-			return p.parseStream()
-
-		case "xref":
-			return document.Object{
-				Type: document.XREFS,
-				Data: p.parseXrefTable(),
-			}
-
-		case "trailer":
-			p.tokeniser.NextToken()
-			return p.parseDictionary()
-		}
-
-	case token.DICT_START:
-		return p.parseDictionary()
-
-	case token.ARRAY_START:
-		return p.parseArray()
-
-	case token.FUNCTION_START:
-		return p.parseFunction()
-
-	case token.STRING_LITERAL:
-		return document.Object{
-			Type: document.STRING,
-			Data: tok.Value,
-		}
-
-	case token.NUMBER_FLOAT:
-		return document.Object{
-			Type: document.NUMBER_FLOAT,
-			Data: tok.Value,
-		}
-
-	case token.NUMBER_INTEGER:
-		gen, err := p.tokeniser.NextToken()
-
-		if err != nil {
-			panic(err)
-		}
-
-		if gen.Type != token.NUMBER_INTEGER {
-			p.tokeniser.UnreadToken()
-			return document.Object{
-				Type: document.NUMBER_INTEGER,
-				Data: tok.Value,
-			}
-		}
-
-		keyword, err := p.tokeniser.NextToken()
-
-		if err != nil {
-			panic(err)
-		}
-
-		if keyword.Type != token.KEYWORD {
-			p.tokeniser.UnreadToken()
-			p.tokeniser.UnreadToken()
-			return document.Object{
-				Type: document.NUMBER_INTEGER,
-				Data: tok.Value,
-			}
-		}
-
-		switch keyword.Value {
-		case "obj":
-			data := p.parseObject()
-
-			t, err := p.tokeniser.NextToken()
-
-			if err != nil {
-				panic(err)
-			}
-
-			var stream interface{}
-
-			if t.Type == token.KEYWORD && t.Value == "stream" {
-				p.tokeniser.UnreadToken()
-				stream = p.parseObject()
-				t, err = p.tokeniser.NextToken()
-
-				if err != nil {
-					panic(err)
+		switch tok.Type {
+		case token.KEYWORD:
+			switch tok.Value {
+			case "obj", "R":
+				// Try to pop the last 2 children off the current node
+				// If they're both integers, then we have an indirect object or
+				// a reference to an indirect object
+				if len(p.current.Children()) < 2 {
+					panic("Unexpected obj")
 				}
+
+				gen := p.current.Children()[len(p.current.Children())-1]
+				id := p.current.Children()[len(p.current.Children())-2]
+
+				if gen.Type() != ast.INTEGER || id.Type() != ast.INTEGER {
+					panic("Unexpected obj")
+				}
+
+				p.current.RemoveChild(len(p.current.Children()) - 1)
+				p.current.RemoveChild(len(p.current.Children()) - 1)
+
+				switch tok.Value {
+				case "obj":
+					obj := ast.NewIndirectObjectNode(
+						id.Value().(int64),
+						gen.Value().(int64),
+					)
+					p.push(obj)
+
+				case "R":
+					refObj := ast.NewObjectRefNode(
+						id.Value().(int64),
+						gen.Value().(int64),
+					)
+					p.current.AddChild(refObj)
+				}
+
+			case "endobj":
+				p.pop()
+
+			case "stream":
+				stream := p.parseStream()
+				p.push(ast.NewStreamNode(stream))
+
+			case "endstream":
+				p.pop()
+
+			case "xref":
+				p.push(ast.NewXRefsNode())
+
+			case "startxref":
+				p.pop()
+
+			case "trailer":
+				// Do no special parsing for trailer for now
+				// maybe introduce a trailer node type to more
+				// easily access the trailer dictionary?
 			}
 
-			if t.Type != token.KEYWORD || t.Value != "endobj" {
-				panic("Expected endobj")
-			}
+		case token.NAME:
+			p.current.AddChild(ast.NewNameNode(tok.Value.(string)))
 
-			return document.Object{
-				Type: document.INDIRECT_OBJECT,
-				Ref: document.ObjectRef{
-					Id:         int(tok.Value.(int64)),
-					Generation: int(gen.Value.(int64)),
-				},
-				Header: data,
-				Data:   stream,
-			}
+		// TODO - Handle null otherwise dictionaries could have trouble
+		// (uneven number of children)
+		// Could potentially just return null as default?
+		// case token.NULL:
 
-		case "R":
-			return document.Object{
-				Type: document.OBJECT_REF,
-				Ref: document.ObjectRef{
-					Id:         int(tok.Value.(int64)),
-					Generation: int(gen.Value.(int64)),
-				},
-			}
+		case token.DICT_START:
+			p.push(ast.NewDictNode())
+
+		case token.DICT_END:
+			p.pop()
+
+		case token.ARRAY_START:
+			p.push(ast.NewArrayNode())
+
+		case token.ARRAY_END:
+			p.pop()
+
+		case token.STRING_LITERAL:
+			p.current.AddChild(ast.NewStringNode(tok.Value.(string)))
+
+		case token.NUMBER_FLOAT:
+			p.current.AddChild(ast.NewFloatNode(tok.Value.(float64)))
+
+		case token.NUMBER_INTEGER:
+			p.current.AddChild(ast.NewIntegerNode(tok.Value.(int64)))
 		}
+
 	}
 
-	return document.Object{
-		Type: document.UNKNOWN,
-		Data: tok.Value,
-	}
+	return p.ast
 }
 
-func (p *Parser) parseXrefTable() []document.Xref {
-	id, err := p.tokeniser.NextToken()
-
-	if err != nil {
-		panic(err)
-	}
-
-	if id.Type != token.NUMBER_INTEGER {
-		panic("Expected xref id")
-	}
-
-	totalObjects, err := p.tokeniser.NextToken()
-
-	if err != nil {
-		panic(err)
-	}
-
-	if totalObjects.Type != token.NUMBER_INTEGER {
-		panic("Expected xref total objects")
-	}
-
-	tot := totalObjects.Value.(int64)
-
-	xrefs := make([]document.Xref, tot)
-
-	for i := int64(0); i < tot; i++ {
-		offset, err := p.tokeniser.NextToken()
-
-		if err != nil {
-			panic(err)
-		}
-
-		if offset.Type != token.NUMBER_INTEGER {
-			panic("Expected xref offset")
-		}
-
-		gen, err := p.tokeniser.NextToken()
-
-		if err != nil {
-			panic(err)
-		}
-
-		if gen.Type != token.NUMBER_INTEGER {
-			panic("Expected xref gen")
-		}
-
-		used, err := p.tokeniser.NextToken()
-
-		if err != nil {
-			panic(err)
-		}
-
-		if used.Type != token.KEYWORD || (used.Value != "n" && used.Value != "f") {
-			panic("Expected xref used")
-		}
-
-		u := false
-
-		if used.Value == "n" {
-			u = true
-		}
-
-		xrefs[i] = document.Xref{
-			Offset:     offset.Value.(int64),
-			Generation: gen.Value.(int64),
-			Used:       u,
-		}
-	}
-
-	return xrefs
+// push pushes a node onto the parent stack and sets it as the current node
+func (p *Parser) push(node ast.PdfNode) {
+	p.current.AddChild(node)
+	p.parentStack = append(p.parentStack, p.current)
+	p.current = node
 }
 
-func (p *Parser) parseStream() document.Object {
+// pop pops a node off the parent stack and sets it as the current node
+func (p *Parser) pop() {
+	if len(p.parentStack) == 0 {
+		panic("Unexpected end")
+	}
+	p.current = p.parentStack[len(p.parentStack)-1]
+	p.parentStack = p.parentStack[:len(p.parentStack)-1]
+}
+
+func (p *Parser) parseStream() string {
 	stream := ""
 
 	for {
@@ -279,98 +158,15 @@ func (p *Parser) parseStream() document.Object {
 		}
 
 		if t.Type == token.KEYWORD && t.Value == "endstream" {
+			p.tokeniser.UnreadToken()
 			break
 		}
 
+		// TODO - fix performance, this is slow
 		if t.Value != nil {
 			stream += fmt.Sprintf("%v", t.Value)
 		}
 	}
 
-	return document.Object{
-		Type: document.STREAM,
-		Data: stream,
-	}
-}
-
-func (p *Parser) parseFunction() document.Object {
-	function := ""
-
-	for {
-		t, err := p.tokeniser.NextToken()
-
-		if err != nil {
-			panic(err)
-		}
-
-		if t.Type == token.FUNCTION_END {
-			break
-		}
-
-		if t.Value != nil {
-			function += t.Value.(string)
-		}
-	}
-
-	return document.Object{
-		Type: document.FUNCTION,
-		Data: function,
-	}
-}
-
-func (p *Parser) parseArray() document.Object {
-	arr := []document.Object{}
-
-	for {
-		t, err := p.tokeniser.NextToken()
-
-		if err != nil {
-			panic(err)
-		}
-
-		if t.Type == token.ARRAY_END {
-			break
-		}
-
-		arr = append(arr, p.parseObject())
-	}
-
-	return document.Object{
-		Type: document.ARRAY,
-		Data: arr,
-	}
-}
-
-// TODO - correct return type
-func (p *Parser) parseDictionary() document.Object {
-	dict := document.Dict{}
-
-	for {
-		t, err := p.tokeniser.NextToken()
-
-		if err != nil {
-			panic(err)
-		}
-
-		if t.Type == token.DICT_END {
-			break
-		}
-
-		if t.Type != token.NAME {
-			report(token.Token{Type: token.NAME}, t)
-		}
-
-		key := t.Value.(string)
-
-		dict[key] = p.parseObject()
-	}
-
-	return document.Object{
-		Type: document.DICT,
-		Data: dict,
-	}
-}
-
-func report(expected token.Token, actual token.Token) {
-	panic(fmt.Sprintf("\nExpected:\n	%s\nActual:\n	%s", expected, actual))
+	return stream
 }
