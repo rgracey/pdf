@@ -29,6 +29,9 @@ const (
 
 	KEYWORD // obj endobj R stream endstream xref trailer startxref
 
+	STREAM // The body of a stream
+
+	DELIMITER    // Any delmiter character
 	REGULAR_CHAR // Any non whitespace or delimiter character
 )
 
@@ -52,6 +55,8 @@ func (t Token) String() string {
 		tokenType = "EOF"
 	case COMMENT:
 		tokenType = "COMMENT"
+	case BOOLEAN:
+		tokenType = "BOOLEAN"
 	case NUMBER_INTEGER:
 		tokenType = "INTEGER"
 	case NUMBER_FLOAT:
@@ -66,6 +71,10 @@ func (t Token) String() string {
 		tokenType = "ARRAY_END"
 	case STRING_LITERAL:
 		tokenType = "STRING_LITERAL"
+	case FUNCTION_START:
+		tokenType = "FUNCTION_START"
+	case FUNCTION_END:
+		tokenType = "FUNCTION_END"
 	case NAME:
 		tokenType = "NAME"
 	case KEYWORD:

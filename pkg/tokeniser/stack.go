@@ -42,6 +42,14 @@ func (s *Stack[T]) Pop() T {
 	return s.items[s.top]
 }
 
+func (s *Stack[T]) Top() T {
+	if s.top == 0 {
+		panic("Stack is empty")
+	}
+
+	return s.items[s.top-1]
+}
+
 // Length returns the number of items in the stack
 func (s *Stack[T]) Length() uint {
 	return s.top

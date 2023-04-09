@@ -1,8 +1,6 @@
 package parser
 
 import (
-	"fmt"
-
 	"github.com/rgracey/pdf/pkg/ast"
 	"github.com/rgracey/pdf/pkg/token"
 	"github.com/rgracey/pdf/pkg/tokeniser"
@@ -77,10 +75,6 @@ func (p *Parser) Parse() ast.PdfNode {
 			case "endobj":
 				p.pop()
 
-			case "stream":
-				stream := p.parseStream()
-				p.push(ast.NewStreamNode(stream))
-
 			case "endstream":
 				p.pop()
 
@@ -99,6 +93,12 @@ func (p *Parser) Parse() ast.PdfNode {
 		case token.NAME:
 			p.current.AddChild(ast.NewNameNode(tok.Value.(string)))
 
+		case token.BOOLEAN:
+			p.current.AddChild(ast.NewBooleanNode(tok.Value.(bool)))
+
+		case token.DELIMITER:
+			// TODO - Handle delimiters?
+
 		// TODO - Handle null otherwise dictionaries could have trouble
 		// (uneven number of children)
 		// Could potentially just return null as default?
@@ -115,6 +115,12 @@ func (p *Parser) Parse() ast.PdfNode {
 
 		case token.ARRAY_END:
 			p.pop()
+
+		case token.FUNCTION_START:
+			p.push(ast.NewFunctionNode())
+
+		case token.STREAM:
+			p.push(ast.NewStreamNode(tok.Value.(string)))
 
 		case token.STRING_LITERAL:
 			p.current.AddChild(ast.NewStringNode(tok.Value.(string)))
@@ -145,28 +151,4 @@ func (p *Parser) pop() {
 	}
 	p.current = p.parentStack[len(p.parentStack)-1]
 	p.parentStack = p.parentStack[:len(p.parentStack)-1]
-}
-
-func (p *Parser) parseStream() string {
-	stream := ""
-
-	for {
-		t, err := p.tokeniser.NextToken()
-
-		if err != nil {
-			panic(err)
-		}
-
-		if t.Type == token.KEYWORD && t.Value == "endstream" {
-			p.tokeniser.UnreadToken()
-			break
-		}
-
-		// TODO - fix performance, this is slow
-		if t.Value != nil {
-			stream += fmt.Sprintf("%v", t.Value)
-		}
-	}
-
-	return stream
 }

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/rgracey/pdf/pkg/token"
 )
@@ -66,36 +67,70 @@ func (t *StreamTokeniser) getToken() (token.Token, error) {
 	switch {
 	case ch == '<':
 		if t.maybe('<') {
-			return token.Token{Type: token.DICT_START}, nil
+			return token.Token{
+				Type:  token.DICT_START,
+				Value: "<<",
+			}, nil
 		}
 
-		// TODO - Should be a hex string
 		return token.Token{
-			Type:  token.REGULAR_CHAR,
-			Value: t.readRegularCharacters(),
+			Type:  token.DELIMITER,
+			Value: "<",
 		}, nil
+
+		// TODO - Should be a hex string
+		// return token.Token{
+		// 	Type:  token.REGULAR_CHAR,
+		// 	Value: t.readRegularCharacters(),
+		// }, nil
 
 	case ch == '>':
 		if t.maybe('>') {
-			return token.Token{Type: token.DICT_END}, nil
+			return token.Token{
+				Type:  token.DICT_END,
+				Value: ">>",
+			}, nil
 		}
 
-		// TODO - is this correct?
 		return token.Token{
-			Type:  token.KEYWORD,
-			Value: t.readRegularCharacters(),
+			Type:  token.DELIMITER,
+			Value: ">",
+		}, nil
+
+	case ch == '{':
+		return token.Token{
+			Type:  token.FUNCTION_START,
+			Value: '{',
+		}, nil
+
+	case ch == '}':
+		return token.Token{
+			Type:  token.FUNCTION_END,
+			Value: '}',
 		}, nil
 
 	case ch == '[':
-		return token.Token{Type: token.ARRAY_START}, nil
+		return token.Token{
+			Type:  token.ARRAY_START,
+			Value: '[',
+		}, nil
 
 	case ch == ']':
-		return token.Token{Type: token.ARRAY_END}, nil
+		return token.Token{
+			Type:  token.ARRAY_END,
+			Value: ']',
+		}, nil
 
 	case ch == '(':
 		return token.Token{
 			Type:  token.STRING_LITERAL,
 			Value: t.readStringLiteral(),
+		}, nil
+
+	case ch == ')':
+		return token.Token{
+			Type:  token.DELIMITER,
+			Value: ')',
 		}, nil
 
 	case ch == '%':
@@ -105,6 +140,18 @@ func (t *StreamTokeniser) getToken() (token.Token, error) {
 		return token.Token{Type: token.NAME, Value: t.readRegularCharacters()}, nil
 
 	default:
+		// TODO - This is a bit of a hack
+		// Instead, could add smart String() handling to AST PdfNodes and modify
+		// the adding of children to stream nodes?
+		// Edge case for handling stream bodies as they can contain characters
+		// that will trip up further tokenisation (or make it hang)
+		if t.readtokens.Length() > 0 &&
+			t.readtokens.Top().Type == token.KEYWORD &&
+			t.readtokens.Top().Value == "stream" {
+			t.unread()
+			return token.Token{Type: token.STREAM, Value: t.readStream()}, nil
+		}
+
 		t.unread()
 		tmp := t.readRegularCharacters()
 
@@ -179,6 +226,24 @@ func (l *StreamTokeniser) readStringLiteral() string {
 	}
 
 	return literal
+}
+
+// readStream reads the stream body until it finds the endstream keyword
+func (l *StreamTokeniser) readStream() string {
+	sb := strings.Builder{}
+
+	for {
+		ch, _ := l.read()
+
+		sb.WriteString(string(ch))
+
+		if strings.HasSuffix(sb.String(), "endstream") {
+			break
+		}
+	}
+
+	stream := sb.String()
+	return stream[:len(stream)-9] // trim "endstream"
 }
 
 func (l *StreamTokeniser) readRegularCharacters() string {
