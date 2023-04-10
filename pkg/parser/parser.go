@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"strings"
+
 	"github.com/rgracey/pdf/pkg/ast"
 	"github.com/rgracey/pdf/pkg/token"
 	"github.com/rgracey/pdf/pkg/tokeniser"
@@ -96,6 +98,11 @@ func (p *Parser) Parse() ast.PdfNode {
 			}
 
 		case token.COMMENT:
+			if strings.HasPrefix(tok.Value.(string), "PDF-") {
+				p.ast.SetValue(tok.Value.(string))
+				continue
+			}
+
 			// The trailer is terminated by the %EOF comment
 			if tok.Value.(string) == "%EOF" &&
 				p.current.Type() == ast.TRAILER {

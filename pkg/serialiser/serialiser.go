@@ -21,7 +21,7 @@ func NewSerialiser() Serialiser {
 func (s *AstSerialiser) Serialise(node ast.PdfNode) (string, error) {
 	switch node.Type() {
 	case ast.ROOT:
-		data := "%PDF-1.4\n" // TODO - store in root node
+		data := fmt.Sprintf("%%%s\n", node.Value())
 
 		indirectObjectOffsets := []int{}
 		trailer := ""
