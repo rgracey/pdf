@@ -22,11 +22,41 @@ func (s *AstSerialiser) Serialise(node ast.PdfNode) (string, error) {
 	switch node.Type() {
 	case ast.ROOT:
 		data := "%PDF-1.4\n" // TODO - store in root node
+
+		indirectObjectOffsets := []int{}
+		trailer := ""
+
 		for _, child := range node.Children() {
+			switch child.Type() {
+			case ast.INDIRECT_OBJECT:
+				indirectObjectOffsets = append(indirectObjectOffsets, len(data))
+
+			case ast.TRAILER:
+				// Serialise the trailer now as we need to output it
+				// after the xref table
+				t, err := s.Serialise(child)
+
+				if err != nil {
+					return "", err
+				}
+
+				trailer = t
+				continue
+			}
+
 			serialised, _ := s.Serialise(child)
 			data += string(serialised)
 		}
-		return data + "\n%%EOF", nil
+
+		xrefTableStartOffset := len(data)
+
+		return fmt.Sprintf(
+			"%s%s\n%s\nstartxref\n%d\n%%EOF",
+			data,
+			createXrefTable(indirectObjectOffsets),
+			trailer,
+			xrefTableStartOffset,
+		), nil
 
 	case ast.BOOLEAN:
 		switch node.Value().(bool) {
@@ -82,16 +112,20 @@ func (s *AstSerialiser) Serialise(node ast.PdfNode) (string, error) {
 		return fmt.Sprintf("\nstream\n%s\nendstream\n", node.Value().(string)), nil
 
 	case ast.XREFS:
-		// TODO - implement building of xref table
+		// We don't serialise the xrefs from the AST,
+		// we generate them from the indirect objects
+		// (done in the root node serialisation)
 
 	case ast.TRAILER:
 		trailer := ""
 
 		for _, child := range node.Children() {
-			if child.Type() == ast.DICT {
-				serialised, _ := s.Serialise(child)
-				trailer += string(serialised) + " "
+			if child.Type() != ast.DICT {
+				continue
 			}
+
+			serialised, _ := s.Serialise(child)
+			trailer += string(serialised) + " "
 		}
 
 		return fmt.Sprintf("trailer\n%s\n", trailer), nil
@@ -117,4 +151,14 @@ func (s *AstSerialiser) Serialise(node ast.PdfNode) (string, error) {
 	}
 
 	return "", fmt.Errorf("unknown node type: %d", node.Type())
+}
+
+func createXrefTable(offsets []int) string {
+	xrefTable := fmt.Sprintf("xref\n0 %d\n0000000000 65535 f\n", len(offsets)+1)
+
+	for _, offset := range offsets {
+		xrefTable += fmt.Sprintf("%010d 00000 n\n", offset)
+	}
+
+	return xrefTable
 }
