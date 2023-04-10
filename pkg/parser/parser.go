@@ -76,7 +76,7 @@ func (p *Parser) Parse() ast.PdfNode {
 				p.pop()
 
 			case "endstream":
-				p.pop()
+				// Nothing to do here for now
 
 			case "xref":
 				p.push(ast.NewXRefsNode())
@@ -120,7 +120,7 @@ func (p *Parser) Parse() ast.PdfNode {
 			p.push(ast.NewFunctionNode())
 
 		case token.STREAM:
-			p.push(ast.NewStreamNode(tok.Value.(string)))
+			p.current.AddChild(ast.NewStreamNode(tok.Value.(string)))
 
 		case token.STRING_LITERAL:
 			p.current.AddChild(ast.NewStringNode(tok.Value.(string)))
