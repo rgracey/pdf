@@ -82,13 +82,19 @@ func (s *AstSerialiser) Serialise(node ast.PdfNode) (string, error) {
 		return fmt.Sprintf("\nstream\n%s\nendstream\n", node.Value().(string)), nil
 
 	case ast.XREFS:
-		xrefTable := ""
+		// TODO - implement building of xref table
+
+	case ast.TRAILER:
+		trailer := ""
+
 		for _, child := range node.Children() {
-			serialised, _ := s.Serialise(child)
-			xrefTable += string(serialised) + " "
+			if child.Type() == ast.DICT {
+				serialised, _ := s.Serialise(child)
+				trailer += string(serialised) + " "
+			}
 		}
 
-		return fmt.Sprintf("xref\n0 %d\n%s\n", len(node.Children()), xrefTable), nil
+		return fmt.Sprintf("trailer\n%s\n", trailer), nil
 
 	case ast.INDIRECT_OBJECT:
 		id := node.(*ast.IndirectObjectNode).Id()

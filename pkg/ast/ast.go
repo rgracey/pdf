@@ -17,6 +17,7 @@ const (
 	XREFS
 	INDIRECT_OBJECT
 	OBJECT_REF
+	TRAILER
 )
 
 type PdfNode interface {
@@ -307,4 +308,16 @@ func (n *DictNode) AddChild(child PdfNode) {
 
 func (n *DictNode) Get(key string) PdfNode {
 	return n.entries[key]
+}
+
+type TrailerNode struct {
+	*pdfNode
+}
+
+func NewTrailerNode() *TrailerNode {
+	return &TrailerNode{
+		&pdfNode{
+			nodeType: TRAILER,
+		},
+	}
 }

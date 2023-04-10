@@ -79,15 +79,27 @@ func (p *Parser) Parse() ast.PdfNode {
 				// Nothing to do here for now
 
 			case "xref":
+				// We don't actually care for the xref table
+				// But to keep the parsing clean, we'll push
+				// a node onto the parent stack so we can store
+				// all the xref entries somewhere
 				p.push(ast.NewXRefsNode())
 
 			case "startxref":
-				p.pop()
+				// Nothing to do here for now
 
 			case "trailer":
-				// Do no special parsing for trailer for now
-				// maybe introduce a trailer node type to more
-				// easily access the trailer dictionary?
+				if p.current.Type() == ast.XREFS {
+					p.pop()
+				}
+				p.push(ast.NewTrailerNode())
+			}
+
+		case token.COMMENT:
+			// The trailer is terminated by the %EOF comment
+			if tok.Value.(string) == "%EOF" &&
+				p.current.Type() == ast.TRAILER {
+				p.pop()
 			}
 
 		case token.NAME:
