@@ -64,6 +64,18 @@ func (t *StreamTokeniser) getToken() (token.Token, error) {
 		ch, _ = t.read()
 	}
 
+	// TODO - This is a bit of a hack
+	// Instead, could add smart String() handling to AST PdfNodes and modify
+	// the adding of children to stream nodes?
+	// Edge case for handling stream bodies as they can contain characters
+	// that will trip up further tokenisation (or make it hang)
+	if t.readtokens.Length() > 0 &&
+		t.readtokens.Top().Type == token.KEYWORD &&
+		t.readtokens.Top().Value == "stream" {
+		t.unread()
+		return token.Token{Type: token.STREAM, Value: t.readStream()}, nil
+	}
+
 	switch {
 	case ch == '<':
 		if t.maybe('<') {
@@ -140,18 +152,6 @@ func (t *StreamTokeniser) getToken() (token.Token, error) {
 		return token.Token{Type: token.NAME, Value: t.readRegularCharacters()}, nil
 
 	default:
-		// TODO - This is a bit of a hack
-		// Instead, could add smart String() handling to AST PdfNodes and modify
-		// the adding of children to stream nodes?
-		// Edge case for handling stream bodies as they can contain characters
-		// that will trip up further tokenisation (or make it hang)
-		if t.readtokens.Length() > 0 &&
-			t.readtokens.Top().Type == token.KEYWORD &&
-			t.readtokens.Top().Value == "stream" {
-			t.unread()
-			return token.Token{Type: token.STREAM, Value: t.readStream()}, nil
-		}
-
 		t.unread()
 		tmp := t.readRegularCharacters()
 
