@@ -21,7 +21,8 @@ func NewSerialiser() Serialiser {
 func (s *AstSerialiser) Serialise(node ast.PdfNode) (string, error) {
 	switch node.Type() {
 	case ast.ROOT:
-		data := fmt.Sprintf("%%%s\n", node.Value())
+		sb := strings.Builder{}
+		sb.WriteString(fmt.Sprintf("%%%s\n", node.Value()))
 
 		indirectObjectOffsets := []int{}
 		trailer := ""
@@ -29,7 +30,7 @@ func (s *AstSerialiser) Serialise(node ast.PdfNode) (string, error) {
 		for _, child := range node.Children() {
 			switch child.Type() {
 			case ast.INDIRECT_OBJECT:
-				indirectObjectOffsets = append(indirectObjectOffsets, len(data))
+				indirectObjectOffsets = append(indirectObjectOffsets, sb.Len())
 
 			case ast.TRAILER:
 				// Serialise the trailer now as we need to output it
@@ -45,14 +46,14 @@ func (s *AstSerialiser) Serialise(node ast.PdfNode) (string, error) {
 			}
 
 			serialised, _ := s.Serialise(child)
-			data += string(serialised)
+			sb.WriteString(serialised)
 		}
 
-		xrefTableStartOffset := len(data)
+		xrefTableStartOffset := sb.Len()
 
 		return fmt.Sprintf(
 			"%s%s\n%s\nstartxref\n%d\n%%EOF",
-			data,
+			sb.String(),
 			createXrefTable(indirectObjectOffsets),
 			trailer,
 			xrefTableStartOffset,
@@ -76,36 +77,36 @@ func (s *AstSerialiser) Serialise(node ast.PdfNode) (string, error) {
 		return fmt.Sprintf("/%s", node.Value().(string)), nil
 
 	case ast.DICT:
-		dict := ""
+		sb := strings.Builder{}
 		for _, child := range node.Children() {
 			serialised, _ := s.Serialise(child)
-			dict += string(serialised) + " "
+			sb.WriteString(serialised + " ")
 		}
 
-		return fmt.Sprintf("<<%s>>", dict), nil
+		return fmt.Sprintf("<<%s>>", sb.String()), nil
 
 	case ast.STRING:
 		return fmt.Sprintf("(%s)", node.Value().(string)), nil
 
 	case ast.FUNCTION:
-		function := ""
+		sb := strings.Builder{}
 		for _, child := range node.Children() {
 			serialised, _ := s.Serialise(child)
-			function += string(serialised)
+			sb.WriteString(serialised)
 		}
 
-		return fmt.Sprintf("{ %s }", function), nil
+		return fmt.Sprintf("{ %s }", sb.String()), nil
 
 	case ast.ARRAY:
-		array := ""
+		sb := strings.Builder{}
 		for _, child := range node.Children() {
 			serialised, _ := s.Serialise(child)
-			array += string(serialised) + " "
+			sb.WriteString(serialised + " ")
 		}
 
 		return fmt.Sprintf(
 			"[%s]",
-			strings.TrimRight(array, " "),
+			strings.TrimRight(sb.String(), " "),
 		), nil
 
 	case ast.STREAM:
@@ -117,7 +118,7 @@ func (s *AstSerialiser) Serialise(node ast.PdfNode) (string, error) {
 		// (done in the root node serialisation)
 
 	case ast.TRAILER:
-		trailer := ""
+		sb := strings.Builder{}
 
 		for _, child := range node.Children() {
 			if child.Type() != ast.DICT {
@@ -125,22 +126,23 @@ func (s *AstSerialiser) Serialise(node ast.PdfNode) (string, error) {
 			}
 
 			serialised, _ := s.Serialise(child)
-			trailer += string(serialised) + " "
+			sb.WriteString(serialised + " ")
 		}
 
-		return fmt.Sprintf("trailer\n%s\n", trailer), nil
+		return fmt.Sprintf("trailer\n%s\n", sb.String()), nil
 
 	case ast.INDIRECT_OBJECT:
 		id := node.(*ast.IndirectObjectNode).Id()
 		generation := node.(*ast.IndirectObjectNode).Gen()
+		sb := strings.Builder{}
 
-		data := fmt.Sprintf("%d %d obj\n", id, generation)
+		sb.WriteString(fmt.Sprintf("%d %d obj\n", id, generation))
 		for _, child := range node.Children() {
 			serialised, _ := s.Serialise(child)
-			data += string(serialised)
+			sb.WriteString(serialised)
 		}
 
-		return data + "\nendobj\n", nil
+		return sb.String() + "\nendobj\n", nil
 
 	case ast.OBJECT_REF:
 		return fmt.Sprintf(
@@ -154,11 +156,12 @@ func (s *AstSerialiser) Serialise(node ast.PdfNode) (string, error) {
 }
 
 func createXrefTable(offsets []int) string {
-	xrefTable := fmt.Sprintf("xref\n0 %d\n0000000000 65535 f\n", len(offsets)+1)
+	sb := strings.Builder{}
+	sb.WriteString(fmt.Sprintf("xref\n0 %d\n0000000000 65535 f\n", len(offsets)+1))
 
 	for _, offset := range offsets {
-		xrefTable += fmt.Sprintf("%010d 00000 n\n", offset)
+		sb.WriteString(fmt.Sprintf("%010d 00000 n\n", offset))
 	}
 
-	return xrefTable
+	return sb.String()
 }
