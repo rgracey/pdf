@@ -186,7 +186,7 @@ func (t *StreamTokeniser) getToken() (token.Token, error) {
 }
 
 func (l *StreamTokeniser) readComment() string {
-	var comment string
+	sb := strings.Builder{}
 
 	for {
 		ch, _ := l.read()
@@ -202,14 +202,14 @@ func (l *StreamTokeniser) readComment() string {
 			break
 		}
 
-		comment += string(ch)
+		sb.WriteRune(ch)
 	}
 
-	return comment
+	return sb.String()
 }
 
 func (l *StreamTokeniser) readStringLiteral() string {
-	var literal string
+	sb := strings.Builder{}
 
 	for {
 		ch, _ := l.read()
@@ -222,10 +222,10 @@ func (l *StreamTokeniser) readStringLiteral() string {
 			ch, _ = l.read()
 		}
 
-		literal += string(ch)
+		sb.WriteRune(ch)
 	}
 
-	return literal
+	return sb.String()
 }
 
 // readStream reads the stream body until it finds the endstream keyword
@@ -247,7 +247,7 @@ func (l *StreamTokeniser) readStream() string {
 }
 
 func (l *StreamTokeniser) readRegularCharacters() string {
-	var characters string
+	sb := strings.Builder{}
 
 	for {
 		ch, _ := l.read()
@@ -257,10 +257,10 @@ func (l *StreamTokeniser) readRegularCharacters() string {
 			break
 		}
 
-		characters += string(ch)
+		sb.WriteRune(ch)
 	}
 
-	return characters
+	return sb.String()
 }
 
 func (t *StreamTokeniser) unread() {
