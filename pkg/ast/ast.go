@@ -109,6 +109,16 @@ func NewRootNode() *RootNode {
 	}
 }
 
+func (n *RootNode) GetTrailer() *TrailerNode {
+	for _, child := range n.children {
+		if child.Type() == TRAILER {
+			return child.(*TrailerNode)
+		}
+	}
+
+	return nil
+}
+
 type BooleanNode struct {
 	*pdfNode
 }
