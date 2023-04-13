@@ -1,4 +1,11 @@
+// Package ast implements the abstract syntax tree for the PDF document
 package ast
+
+// All nodes in the AST implement the PdfNode interface to allow for easy
+// traversal. Each node can be cast to a specific type via a type assertion to
+// access node specific methods/fields.
+// E.g:
+// something := someNode.(ast.DictNode).Get("Key")
 
 type Type int
 
@@ -20,6 +27,7 @@ const (
 	TRAILER
 )
 
+// PdfNode is the interface for all nodes in the AST
 type PdfNode interface {
 	Type() Type                // Get the type of the node
 	Value() interface{}        // Get the value of the node
@@ -31,20 +39,24 @@ type PdfNode interface {
 	Clone() PdfNode            // Clone the node
 }
 
+// pdfNode is the base struct for all nodes in the AST
 type pdfNode struct {
 	nodeType Type
 	value    interface{}
 	children []PdfNode
 }
 
+// Type returns the type of the node
 func (n *pdfNode) Type() Type {
 	return n.nodeType
 }
 
+// Value returns the value of the node
 func (n *pdfNode) Value() interface{} {
 	return n.value
 }
 
+// SetValue sets the value of the node
 func (n *pdfNode) SetValue(value interface{}) {
 	switch n.nodeType {
 	case BOOLEAN:
@@ -68,22 +80,27 @@ func (n *pdfNode) SetValue(value interface{}) {
 	n.value = value
 }
 
+// Children returns the children of the node. This can be 0 or more nodes
 func (n *pdfNode) Children() []PdfNode {
 	return n.children
 }
 
+// AddChild adds a child to the node
 func (n *pdfNode) AddChild(child PdfNode) {
 	n.children = append(n.children, child)
 }
 
+// RemoveChild removes a child from the node
 func (n *pdfNode) RemoveChild(index int) {
 	n.children = append(n.children[:index], n.children[index+1:]...)
 }
 
+// ReplaceChild replaces a child with another node
 func (n *pdfNode) ReplaceChild(index int, child PdfNode) {
 	n.children[index] = child
 }
 
+// Clone clones the node
 func (n *pdfNode) Clone() PdfNode {
 	clone := &pdfNode{
 		nodeType: n.nodeType,
@@ -97,6 +114,8 @@ func (n *pdfNode) Clone() PdfNode {
 	return clone
 }
 
+// RootNode is the root of the PDF AST/Document. It contains all other nodes as
+// children
 type RootNode struct {
 	*pdfNode
 }
@@ -109,6 +128,7 @@ func NewRootNode() *RootNode {
 	}
 }
 
+// GetTrailer returns the trailer node if it exists
 func (n *RootNode) GetTrailer() *TrailerNode {
 	for _, child := range n.children {
 		if child.Type() == TRAILER {

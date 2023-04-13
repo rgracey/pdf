@@ -9,17 +9,20 @@ import (
 	"github.com/rgracey/pdf/pkg/token"
 )
 
+// Tokeniser takes raw input characters and breaks them into tokens
 type Tokeniser interface {
 	NextToken() (token.Token, error)
 	UnreadToken()
 }
 
+// StreamTokeniser reads characters from an input stream and returns tokens
 type StreamTokeniser struct {
 	r            *bufio.Reader
 	readtokens   *Stack[token.Token] // All read tokens
 	unreadTokens *Stack[token.Token] // Any read then unread tokens
 }
 
+// NewTokeniser returns a new tokeniser
 func NewTokeniser(r io.Reader) Tokeniser {
 	return &StreamTokeniser{
 		r:            bufio.NewReader(r),
@@ -28,6 +31,7 @@ func NewTokeniser(r io.Reader) Tokeniser {
 	}
 }
 
+// NextToken returns the next token
 func (t *StreamTokeniser) NextToken() (token.Token, error) {
 	if t.unreadTokens.Length() > 0 {
 		tok := t.unreadTokens.Pop()
@@ -45,6 +49,7 @@ func (t *StreamTokeniser) NextToken() (token.Token, error) {
 	return tok, nil
 }
 
+// UnreadToken unreads the last token read so it can be read again.
 func (t *StreamTokeniser) UnreadToken() {
 	if t.readtokens.Length() == 0 {
 		panic("No tokens to unread")
@@ -53,6 +58,8 @@ func (t *StreamTokeniser) UnreadToken() {
 	t.unreadTokens.Push(t.readtokens.Pop())
 }
 
+// getToken reads one or more characters from the input stream and returns a
+// token representing the input
 func (t *StreamTokeniser) getToken() (token.Token, error) {
 	ch, eof := t.read()
 
@@ -208,6 +215,7 @@ func (l *StreamTokeniser) readComment() string {
 	return sb.String()
 }
 
+// readStringLiteral reads a string literal from the input stream.
 func (l *StreamTokeniser) readStringLiteral() string {
 	sb := strings.Builder{}
 
@@ -228,7 +236,8 @@ func (l *StreamTokeniser) readStringLiteral() string {
 	return sb.String()
 }
 
-// readStream reads the stream body until it finds the endstream keyword
+// readStream reads the body of a PDF stream until it finds the endstream
+// keyword. It consumes the endstream keyword and returns the stream body only.
 func (l *StreamTokeniser) readStream() string {
 	sb := strings.Builder{}
 
@@ -246,6 +255,8 @@ func (l *StreamTokeniser) readStream() string {
 	return stream[:len(stream)-9] // trim "endstream"
 }
 
+// readRegularCharacters reads "regular" (as defined by the PDF spec) characters
+// from the input stream and returns them as a string.
 func (l *StreamTokeniser) readRegularCharacters() string {
 	sb := strings.Builder{}
 
@@ -263,10 +274,14 @@ func (l *StreamTokeniser) readRegularCharacters() string {
 	return sb.String()
 }
 
+// unread unreads the last character read from the input stream so that it can
+// be read again.
 func (t *StreamTokeniser) unread() {
 	t.r.UnreadRune()
 }
 
+// read reads the next character in the input stream and returns it. If there
+// are no more characters to read, it returns true to indicate EOF.
 func (t *StreamTokeniser) read() (rune, bool) {
 	ch, _, err := t.r.ReadRune()
 
@@ -277,6 +292,9 @@ func (t *StreamTokeniser) read() (rune, bool) {
 	return ch, false
 }
 
+// maybe checks the next character in the input stream and returns true if it
+// matches the character passed in and consumes it from the input stream.
+// Otherwise, it returns false and does not consume the character.
 func (t *StreamTokeniser) maybe(ch rune) bool {
 	next, _ := t.read()
 

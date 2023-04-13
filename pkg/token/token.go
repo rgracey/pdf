@@ -2,6 +2,7 @@ package token
 
 import "fmt"
 
+// Type represents the type of a token
 type Type int
 
 const (
@@ -35,18 +36,12 @@ const (
 	REGULAR_CHAR // Any non whitespace or delimiter character
 )
 
+// Token represents a grouping of characters that have a meaning.
 type Token struct {
 	Type  Type
 	Value interface{}
 }
 
-type IndiectObject struct {
-	Id  uint
-	Gen uint
-	// TODO - more
-}
-
-// String method
 func (t Token) String() string {
 	var tokenType = "UNKNOWN"
 

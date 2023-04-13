@@ -42,6 +42,7 @@ func (s *Stack[T]) Pop() T {
 	return s.items[s.top]
 }
 
+// Top returns the last item from the stack without removing it
 func (s *Stack[T]) Top() T {
 	if s.top == 0 {
 		panic("Stack is empty")

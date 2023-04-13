@@ -8,6 +8,7 @@ import (
 	"github.com/rgracey/pdf/pkg/tokeniser"
 )
 
+// Parser takes tokens and builds another representation of the PDF
 type Parser struct {
 	tokeniser   tokeniser.Tokeniser
 	ast         ast.PdfNode
@@ -25,6 +26,7 @@ func NewParser(tokeniser tokeniser.Tokeniser) *Parser {
 	}
 }
 
+// Parse reads tokens from the tokeniser and builds an AST
 func (p *Parser) Parse() ast.PdfNode {
 	for {
 		tok, err := p.tokeniser.NextToken()
@@ -137,6 +139,9 @@ func (p *Parser) Parse() ast.PdfNode {
 
 		case token.FUNCTION_START:
 			p.push(ast.NewFunctionNode())
+
+		case token.FUNCTION_END:
+			p.pop()
 
 		case token.STREAM:
 			p.current.AddChild(ast.NewStreamNode(tok.Value.(string)))

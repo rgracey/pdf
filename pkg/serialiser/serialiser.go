@@ -7,10 +7,12 @@ import (
 	"github.com/rgracey/pdf/pkg/ast"
 )
 
+// Serialiser is an interface for serialising a PDF AST to some other format
 type Serialiser interface {
 	Serialise(node ast.PdfNode) (string, error)
 }
 
+// AstSerialiser is a serialiser that serialises a PDF AST to a string
 type AstSerialiser struct {
 }
 
@@ -18,6 +20,9 @@ func NewSerialiser() Serialiser {
 	return &AstSerialiser{}
 }
 
+// Serialise serialises a PDF AST to a string
+// This can be called on any node in the AST, but the serialised output may mot
+// make sense
 func (s *AstSerialiser) Serialise(node ast.PdfNode) (string, error) {
 	switch node.Type() {
 	case ast.ROOT:
@@ -155,6 +160,8 @@ func (s *AstSerialiser) Serialise(node ast.PdfNode) (string, error) {
 	return "", fmt.Errorf("unknown node type: %d", node.Type())
 }
 
+// createXrefTable creates a new xref table from a list of byte offsets for the
+// indirect objects in the PDF
 func createXrefTable(offsets []int) string {
 	sb := strings.Builder{}
 	sb.WriteString(fmt.Sprintf("xref\n0 %d\n0000000000 65535 f\n", len(offsets)+1))
