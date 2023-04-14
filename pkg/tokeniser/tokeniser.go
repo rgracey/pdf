@@ -119,25 +119,25 @@ func (t *StreamTokeniser) getToken() (token.Token, error) {
 	case ch == '{':
 		return token.Token{
 			Type:  token.FUNCTION_START,
-			Value: '{',
+			Value: "{",
 		}, nil
 
 	case ch == '}':
 		return token.Token{
 			Type:  token.FUNCTION_END,
-			Value: '}',
+			Value: "}",
 		}, nil
 
 	case ch == '[':
 		return token.Token{
 			Type:  token.ARRAY_START,
-			Value: '[',
+			Value: "[",
 		}, nil
 
 	case ch == ']':
 		return token.Token{
 			Type:  token.ARRAY_END,
-			Value: ']',
+			Value: "]",
 		}, nil
 
 	case ch == '(':
@@ -149,7 +149,7 @@ func (t *StreamTokeniser) getToken() (token.Token, error) {
 	case ch == ')':
 		return token.Token{
 			Type:  token.DELIMITER,
-			Value: ')',
+			Value: ")",
 		}, nil
 
 	case ch == '%':
