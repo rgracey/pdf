@@ -76,7 +76,7 @@ node := findNode(func(n ast.PdfNode) bool {
     }
 
     return false
-}, root)
+}, ast)
 
 
 // ... do something with node
