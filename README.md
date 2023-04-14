@@ -4,6 +4,7 @@ A simple PDF parser/serialiser for Go.
 ## Getting Started
 ### Example
 #### Parsing
+Parsing a PDF file into an Abstrast-Syntax-Tree (AST).
 ##### Parsing a file
 ```go
 fileName := "sample.pdf"
@@ -26,6 +27,7 @@ ast, _ := pdf.ParseStream(f)
 ```
 
 #### Serialising
+Serialising an AST into a string, suitable for writing to a file.
 ```go
 ast, _ := pdf.ParseFile("sample.pdf")
 
