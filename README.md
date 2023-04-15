@@ -4,7 +4,7 @@ A simple PDF parser/serialiser for Go.
 ## Getting Started
 ### Example
 #### Parsing
-Parsing a PDF file into an Abstrast-Syntax-Tree (AST).
+Parsing a PDF file into an Abstract-Syntax-Tree (AST).
 ##### Parsing a file
 ```go
 fileName := "sample.pdf"
