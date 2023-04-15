@@ -6,6 +6,7 @@ import (
 
 	"github.com/rgracey/pdf/pkg/ast"
 	"github.com/rgracey/pdf/pkg/parser"
+	"github.com/rgracey/pdf/pkg/serialiser"
 	"github.com/rgracey/pdf/pkg/tokeniser"
 )
 
@@ -23,4 +24,9 @@ func ParseFile(filename string) (ast.PdfNode, error) {
 	defer file.Close()
 
 	return ParseStream(file)
+}
+
+func Serialise(node ast.PdfNode) (string, error) {
+	ser := serialiser.NewSerialiser()
+	return ser.Serialise(node)
 }
