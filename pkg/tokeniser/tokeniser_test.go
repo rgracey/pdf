@@ -75,15 +75,7 @@ func TestTokeniser_NextToken(t *testing.T) {
 		{Type: token.KEYWORD, Value: "endobj"},
 	}
 
-	for _, expectedToken := range expectedTokens {
-		tok, err := tokeniser.NextToken()
-
-		if err != nil {
-			t.Errorf("Unexpected error: %v", err)
-		}
-
-		compareToken(t, expectedToken, tok)
-	}
+	expectTokens(t, tokeniser, expectedTokens)
 }
 
 func TestTokeniser_UnreadToken(t *testing.T) {
@@ -91,29 +83,180 @@ func TestTokeniser_UnreadToken(t *testing.T) {
 
 	tokeniser := tokeniser.NewTokeniser(pdf)
 
-	expected := make([]token.Token, 3)
-
 	for i := 0; i < 3; i++ {
-		tok, _ := tokeniser.NextToken()
-		expected[i] = tok
+		tokeniser.NextToken()
 	}
 
 	for i := 0; i < 3; i++ {
 		tokeniser.UnreadToken()
 	}
 
-	for i := 0; i < 3; i++ {
-		tok, _ := tokeniser.NextToken()
-		compareToken(t, expected[i], tok)
+	expected := []token.Token{
+		{Type: token.NUMBER_INTEGER, Value: int64(1)},
+		{Type: token.NUMBER_INTEGER, Value: int64(0)},
+		{Type: token.KEYWORD, Value: "obj"},
 	}
+
+	expectTokens(t, tokeniser, expected)
 }
 
-func compareToken(t *testing.T, expected token.Token, actual token.Token) {
-	if expected.Type != actual.Type {
-		t.Errorf("Expected token type %v, got %v", expected.Type, actual.Type)
+func TestTokeniser_SkipsWhitespace(t *testing.T) {
+	pdf := strings.NewReader("\n \x00           1 0 obj")
+
+	tokeniser := tokeniser.NewTokeniser(pdf)
+
+	expected := []token.Token{
+		{Type: token.NUMBER_INTEGER, Value: int64(1)},
+		{Type: token.NUMBER_INTEGER, Value: int64(0)},
+		{Type: token.KEYWORD, Value: "obj"},
 	}
 
-	if expected.Value != actual.Value {
-		t.Errorf("Expected token value %v, got %v", expected.Value, actual.Value)
+	expectTokens(t, tokeniser, expected)
+}
+
+func TestTokeniser_HandlesStreams(t *testing.T) {
+	pdf := strings.NewReader("stream\nThis is a stream\nendstream")
+
+	tokeniser := tokeniser.NewTokeniser(pdf)
+
+	expected := []token.Token{
+		{Type: token.KEYWORD, Value: "stream"},
+		{Type: token.STREAM, Value: "This is a stream"},
+	}
+
+	expectTokens(t, tokeniser, expected)
+}
+
+func TestTokeniser_HandlesStrings(t *testing.T) {
+	pdf := strings.NewReader("(This is a string)")
+
+	tokeniser := tokeniser.NewTokeniser(pdf)
+
+	expected := []token.Token{
+		{Type: token.STRING_LITERAL, Value: "This is a string"},
+	}
+
+	expectTokens(t, tokeniser, expected)
+}
+
+func TestTokeniser_HandlesComments(t *testing.T) {
+	pdf := strings.NewReader("%This is a comment\n")
+
+	tokeniser := tokeniser.NewTokeniser(pdf)
+
+	expected := []token.Token{
+		{Type: token.COMMENT, Value: "This is a comment"},
+	}
+
+	expectTokens(t, tokeniser, expected)
+}
+
+func TestTokeniser_HandlesNames(t *testing.T) {
+	pdf := strings.NewReader("/Catalog")
+
+	tokeniser := tokeniser.NewTokeniser(pdf)
+
+	expected := []token.Token{
+		{Type: token.NAME, Value: "Catalog"},
+	}
+
+	expectTokens(t, tokeniser, expected)
+}
+
+func TestTokeniser_HandlesDict(t *testing.T) {
+	pdf := strings.NewReader("<< /Type /Catalog /Outlines 2 0 R /Pages 3 0 R >>")
+
+	tokeniser := tokeniser.NewTokeniser(pdf)
+
+	expected := []token.Token{
+		{Type: token.DICT_START, Value: "<<"},
+		{Type: token.NAME, Value: "Type"},
+		{Type: token.NAME, Value: "Catalog"},
+		{Type: token.NAME, Value: "Outlines"},
+		{Type: token.NUMBER_INTEGER, Value: int64(2)},
+		{Type: token.NUMBER_INTEGER, Value: int64(0)},
+		{Type: token.KEYWORD, Value: "R"},
+		{Type: token.NAME, Value: "Pages"},
+		{Type: token.NUMBER_INTEGER, Value: int64(3)},
+		{Type: token.NUMBER_INTEGER, Value: int64(0)},
+		{Type: token.KEYWORD, Value: "R"},
+		{Type: token.DICT_END, Value: ">>"},
+	}
+
+	expectTokens(t, tokeniser, expected)
+}
+
+func TestTokeniser_HandlesArray(t *testing.T) {
+	pdf := strings.NewReader("[ 1 2 3 ]")
+
+	tokeniser := tokeniser.NewTokeniser(pdf)
+
+	expected := []token.Token{
+		{Type: token.ARRAY_START, Value: "["},
+		{Type: token.NUMBER_INTEGER, Value: int64(1)},
+		{Type: token.NUMBER_INTEGER, Value: int64(2)},
+		{Type: token.NUMBER_INTEGER, Value: int64(3)},
+		{Type: token.ARRAY_END, Value: "]"},
+	}
+
+	expectTokens(t, tokeniser, expected)
+}
+
+func TestTokeniser_HandlesBooleans(t *testing.T) {
+	pdf := strings.NewReader("true false")
+
+	tokeniser := tokeniser.NewTokeniser(pdf)
+
+	expected := []token.Token{
+		{Type: token.BOOLEAN, Value: true},
+		{Type: token.BOOLEAN, Value: false},
+	}
+
+	expectTokens(t, tokeniser, expected)
+}
+
+func TestTokeniser_HandlesFloat(t *testing.T) {
+	pdf := strings.NewReader("1.0000 1.5 1.738478")
+
+	tokeniser := tokeniser.NewTokeniser(pdf)
+
+	expected := []token.Token{
+		{Type: token.NUMBER_FLOAT, Value: float64(1.0000)},
+		{Type: token.NUMBER_FLOAT, Value: float64(1.5)},
+		{Type: token.NUMBER_FLOAT, Value: float64(1.738478)},
+	}
+
+	expectTokens(t, tokeniser, expected)
+}
+
+func TestTokeniser_HandlesInteger(t *testing.T) {
+	pdf := strings.NewReader("1 2 3")
+
+	tokeniser := tokeniser.NewTokeniser(pdf)
+
+	expected := []token.Token{
+		{Type: token.NUMBER_INTEGER, Value: int64(1)},
+		{Type: token.NUMBER_INTEGER, Value: int64(2)},
+		{Type: token.NUMBER_INTEGER, Value: int64(3)},
+	}
+
+	expectTokens(t, tokeniser, expected)
+}
+
+func expectTokens(t *testing.T, tok tokeniser.Tokeniser, expected []token.Token) {
+	for _, expectedToken := range expected {
+		actual, err := tok.NextToken()
+
+		if err != nil {
+			t.Errorf("Unexpected error: %v", err)
+		}
+
+		if expectedToken.Type != actual.Type {
+			t.Errorf("Expected token type %v, got %v", expectedToken.Type, actual.Type)
+		}
+
+		if expectedToken.Value != actual.Value {
+			t.Errorf("Expected token value \"%v\", got \"%v\"", expectedToken.Value, actual.Value)
+		}
 	}
 }

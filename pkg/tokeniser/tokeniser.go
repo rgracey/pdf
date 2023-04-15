@@ -252,7 +252,14 @@ func (l *StreamTokeniser) readStream() string {
 	}
 
 	stream := sb.String()
-	return stream[:len(stream)-9] // trim "endstream"
+
+	// Trim endstream keyword
+	stream = stream[:len(stream)-9]
+
+	// Trim trailing whitespace
+	stream = strings.TrimRight(stream, " \t\r\n")
+
+	return stream
 }
 
 // readRegularCharacters reads "regular" (as defined by the PDF spec) characters
